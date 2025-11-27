@@ -73,6 +73,15 @@ export const globalStyles = StyleSheet.create({
     fontSize: 16,
   },
 
+  // --- Small button ---
+  buttonSmall: {
+    backgroundColor: "#4A6CF7",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+
   // --- Card & List ---
   card: {
     backgroundColor: "#FFF",

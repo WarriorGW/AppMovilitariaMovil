@@ -1,7 +1,7 @@
 import { CustomButton } from "@/components/custom-button";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Picker } from "@react-native-picker/picker";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -33,6 +33,7 @@ const denominations = [
 ];
 
 export default function AddScreen() {
+  const [wallets, setWallets] = useState<{ id: string; name: string }[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
   const [entries, setEntries] = useState<
     { id: string; denom: string; qty: number }[]
@@ -40,6 +41,25 @@ export default function AddScreen() {
   const [note, setNote] = useState("");
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // 🌐 Traer wallets desde backend
+  const fetchWallets = async () => {
+    try {
+      const res = await fetch("http://localhost:4000/api/wallets");
+      if (!res.ok) throw new Error("Error al obtener wallets");
+
+      const data = await res.json();
+      setWallets(data);
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", "No se pudieron cargar las wallets.");
+    }
+  };
+
+  // Traer wallets al montar
+  useEffect(() => {
+    fetchWallets();
+  }, []);
 
   const addEntry = () => {
     setEntries([...entries, { id: Date.now().toString(), denom: "", qty: 0 }]);
@@ -96,7 +116,7 @@ export default function AddScreen() {
     }
 
     try {
-      const res = await fetch("http://localhost:4000/api/wallet/add", {
+      const res = await fetch("http://localhost:4000/api/wallets/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -131,9 +151,9 @@ export default function AddScreen() {
 
       <Text style={globalStyles.text}>Seleccionar Wallet:</Text>
       <FlatList
-        data={mockWallets}
+        data={wallets} // 👈 aquí usamos las wallets reales
         horizontal
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={{ alignItems: "center" }}
         style={{ maxHeight: 60 }}
         renderItem={({ item }) => (

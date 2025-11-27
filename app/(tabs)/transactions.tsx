@@ -7,9 +7,8 @@ export default function TransactionsScreen() {
   const [transactions, setTransactions] = useState<
     {
       id: string;
-      type: string;
-      amount: number;
-      currency: string;
+      walletName: string;
+      totalAmount: number;
       note?: string;
       date?: string;
     }[]
@@ -21,7 +20,17 @@ export default function TransactionsScreen() {
       if (!res.ok) throw new Error("Error al obtener transacciones");
 
       const data = await res.json();
-      setTransactions(data);
+
+      // 🔄 Adaptar los campos al formato del backend
+      const mapped = data.map((t: any) => ({
+        id: t.id.toString(),
+        walletName: t.wallet?.name || "Sin nombre",
+        totalAmount: t.totalAmount,
+        note: t.note,
+        date: new Date(t.date).toLocaleDateString(),
+      }));
+
+      setTransactions(mapped);
     } catch (err) {
       console.error(err);
       Alert.alert("Error", "No se pudieron cargar las transacciones.");
@@ -38,13 +47,11 @@ export default function TransactionsScreen() {
 
       <FlatList
         data={transactions}
-        keyExtractor={(item) => item.id || Math.random().toString()}
+        keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <View style={globalStyles.card}>
-            <Text style={globalStyles.subtitle}>{item.type}</Text>
-            <Text style={globalStyles.text}>
-              {item.amount} {item.currency}
-            </Text>
+            <Text style={globalStyles.subtitle}>{item.walletName}</Text>
+            <Text style={globalStyles.text}>Monto: ${item.totalAmount}</Text>
             {item.note && (
               <Text style={globalStyles.text}>Nota: {item.note}</Text>
             )}
