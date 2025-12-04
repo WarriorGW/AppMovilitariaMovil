@@ -12,37 +12,25 @@ import {
 } from "react-native";
 import { globalStyles } from "../styles/globalStyles";
 
-const mockWallets = [
-  { id: "1", name: "Personal" },
-  { id: "2", name: "Trabajo" },
-  { id: "3", name: "Maquinas" },
-  { id: "4", name: "Dólares USD" },
-  { id: "5", name: "Dólares USD" },
-];
-
-const denominations = [
-  "Moneda 1 MXN",
-  "Moneda 2 MXN",
-  "Moneda 5 MXN",
-  "Moneda 10 MXN",
-  "Billete 20 MXN",
-  "Billete 50 MXN",
-  "Billete 100 MXN",
-  "Billete 200 MXN",
-  "Billete 500 MXN",
-];
-
 export default function AddScreen() {
   const [wallets, setWallets] = useState<{ id: string; name: string }[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
   const [entries, setEntries] = useState<
     { id: string; denom: string; qty: number }[]
   >([]);
+
   const [note, setNote] = useState("");
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // 🌐 Traer wallets desde backend
+  // 🟥 ERRORES
+  const [errors, setErrors] = useState({
+    wallet: false,
+    entries: false,
+    denomination: {} as Record<string, boolean>,
+    quantity: {} as Record<string, boolean>,
+  });
+
   const fetchWallets = async () => {
     try {
       const res = await fetch("http://localhost:4000/api/wallets");
@@ -56,7 +44,6 @@ export default function AddScreen() {
     }
   };
 
-  // Traer wallets al montar
   useEffect(() => {
     fetchWallets();
   }, []);
@@ -75,19 +62,43 @@ export default function AddScreen() {
     );
   };
 
-  // 💾 Guardar e integrar con backend
   const handleSave = async () => {
+    let valid = true;
+
+    // Reset errores
+    const newErrors = {
+      wallet: false,
+      entries: false,
+      denomination: {},
+      quantity: {},
+    };
+
     if (!selectedWallet) {
-      Alert.alert("Error", "Selecciona una wallet antes de guardar.");
-      return;
+      newErrors.wallet = true;
+      valid = false;
     }
 
     if (entries.length === 0) {
-      Alert.alert("Error", "Agrega al menos una denominación.");
-      return;
+      newErrors.entries = true;
+      valid = false;
     }
 
-    // Convertir denominaciones tipo texto → valor numérico
+    entries.forEach((e) => {
+      if (!e.denom) {
+        newErrors.denomination[e.id] = true;
+        valid = false;
+      }
+      if (!e.qty || e.qty <= 0) {
+        newErrors.quantity[e.id] = true;
+        valid = false;
+      }
+    });
+
+    setErrors(newErrors);
+
+    if (!valid) return;
+
+    // Mapa de valores
     const denomMap: Record<string, number> = {
       "Moneda 1 MXN": 1,
       "Moneda 2 MXN": 2,
@@ -100,20 +111,10 @@ export default function AddScreen() {
       "Billete 500 MXN": 500,
     };
 
-    const denominationsData = entries
-      .filter((e) => e.denom && e.qty > 0)
-      .map((e) => ({
-        value: denomMap[e.denom],
-        amount: e.qty,
-      }));
-
-    if (denominationsData.length === 0) {
-      Alert.alert(
-        "Error",
-        "Verifica que todas las denominaciones sean válidas."
-      );
-      return;
-    }
+    const denominationsData = entries.map((e) => ({
+      value: denomMap[e.denom],
+      amount: e.qty,
+    }));
 
     try {
       const res = await fetch("http://localhost:4000/api/wallets/add", {
@@ -130,18 +131,16 @@ export default function AddScreen() {
       const data = await res.json();
 
       if (!res.ok) {
-        Alert.alert("Error", data.message || "Error al guardar los datos.");
+        Alert.alert("Error", data.message || "Error al guardar.");
         return;
       }
 
       Alert.alert("Éxito", "Fondos agregados correctamente.");
-      // Limpieza de campos
       setEntries([]);
       setNote("");
       setDate(new Date());
     } catch (err) {
-      console.error(err);
-      Alert.alert("Error", "No se pudo conectar con el servidor.");
+      Alert.alert("Error", "No se pudo conectar al servidor.");
     }
   };
 
@@ -150,8 +149,16 @@ export default function AddScreen() {
       <Text style={globalStyles.title}>Agregar Moneda</Text>
 
       <Text style={globalStyles.text}>Seleccionar Wallet:</Text>
+
+      {/* 🟥 Error visual */}
+      {errors.wallet && (
+        <Text style={{ color: "red", marginBottom: 5 }}>
+          Selecciona una wallet.
+        </Text>
+      )}
+
       <FlatList
-        data={wallets} // 👈 aquí usamos las wallets reales
+        data={wallets}
         horizontal
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={{ alignItems: "center" }}
@@ -162,9 +169,14 @@ export default function AddScreen() {
               globalStyles.buttonSmall,
               {
                 backgroundColor:
-                  selectedWallet === item.id ? "#333" : "#4A6CF7",
+                  selectedWallet === item.id ? "#222" : "#4A6CF7",
                 paddingHorizontal: 20,
                 marginRight: 10,
+                borderColor:
+                  errors.wallet && selectedWallet !== item.id
+                    ? "red"
+                    : "transparent",
+                borderWidth: 2,
               },
             ]}
             onPress={() => setSelectedWallet(item.id)}
@@ -177,30 +189,72 @@ export default function AddScreen() {
       <Text style={[globalStyles.text, { marginTop: 20 }]}>
         Denominaciones:
       </Text>
+
+      {errors.entries && (
+        <Text style={{ color: "red" }}>Agrega al menos una denominación.</Text>
+      )}
+
       {entries.map((item) => (
         <View
           key={item.id}
           style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}
         >
-          <Picker
-            selectedValue={item.denom}
-            onValueChange={(v) => updateEntry(item.id, "denom", v)}
-            style={{ height: 44 }}
-          >
-            <Picker.Item label="Seleccionar" value="" />
-            {denominations.map((d) => (
-              <Picker.Item key={d} label={d} value={d} />
-            ))}
-          </Picker>
-          <TextInput
-            placeholder="Cantidad"
-            keyboardType="numeric"
-            value={item.qty.toString()}
-            onChangeText={(v) => updateEntry(item.id, "qty", v)}
-            style={[globalStyles.input, { flex: 1 }]}
-          />
+          <View style={{ flex: 1 }}>
+            <Picker
+              selectedValue={item.denom}
+              onValueChange={(v) => updateEntry(item.id, "denom", v)}
+              style={{
+                height: 44,
+                borderWidth: 2,
+                borderColor: errors.denomination[item.id] ? "red" : "#ccc",
+              }}
+            >
+              <Picker.Item label="Seleccionar" value="" />
+              {Object.keys({
+                "Moneda 1 MXN": 1,
+                "Moneda 2 MXN": 2,
+                "Moneda 5 MXN": 5,
+                "Moneda 10 MXN": 10,
+                "Billete 20 MXN": 20,
+                "Billete 50 MXN": 50,
+                "Billete 100 MXN": 100,
+                "Billete 200 MXN": 200,
+                "Billete 500 MXN": 500,
+              }).map((d) => (
+                <Picker.Item key={d} label={d} value={d} />
+              ))}
+            </Picker>
+
+            {errors.denomination[item.id] && (
+              <Text style={{ color: "red", marginTop: 2 }}>
+                Selecciona una denominación.
+              </Text>
+            )}
+          </View>
+
+          <View style={{ flex: 1 }}>
+            <TextInput
+              placeholder="Cantidad"
+              keyboardType="numeric"
+              value={item.qty.toString()}
+              onChangeText={(v) => updateEntry(item.id, "qty", v)}
+              style={[
+                globalStyles.input,
+                {
+                  borderColor: errors.quantity[item.id] ? "red" : "#ccc",
+                },
+              ]}
+            />
+
+            {errors.quantity[item.id] && (
+              <Text style={{ color: "red", marginTop: 2 }}>
+                Ingresa una cantidad válida.
+              </Text>
+            )}
+          </View>
         </View>
       ))}
+
       <CustomButton title="Agregar otra denominación" onPress={addEntry} />
 
       <TextInput
@@ -215,14 +269,14 @@ export default function AddScreen() {
           Fecha: {date.toLocaleDateString()}
         </Text>
       </TouchableOpacity>
+
       {showDatePicker && (
         <DateTimePicker
           value={date}
           mode="date"
-          display="default"
-          onChange={(_, selectedDate) => {
+          onChange={(_, d) => {
             setShowDatePicker(false);
-            if (selectedDate) setDate(selectedDate);
+            if (d) setDate(d);
           }}
         />
       )}
